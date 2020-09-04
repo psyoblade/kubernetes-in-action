@@ -97,7 +97,89 @@ This is v2 running in pod kubia-v2-prl59
 
 
 ## 2. 관리되는 파드 업데이트
-* 서비스 되고 있는 3개의 레플리케이션 서비스가 정상화인지 확인합니다
+* 9.1.1 오래된 파드를 삭제하고 새 파드로 교체
+> v1 프로젝트를 생성하고, rc 파드 템플릿을 변경 후, 서비스의 파드를 삭제하는 방식으로 테스트 해보겠습니다
+
+* 프로젝트 생성 후, ReplicationController 변경 후 일부 파드만 삭제하였을 때에 삭제된 파드가 생성시에 v2 로 생성되는지 확인합니다
+  - edit rc 시에 KUBE\_EDITOR 설정이 제대로 되어 있지 않으면 수정내역이 반영되지 않으므로 주의바랍니다
+```bash
+kubectl create -f kubia-rc-and-service-v1.yaml
+
+curl localhost
+This is v1 running in pod kubia-v1-8jg95
+
+kubectl get svc
+NAME         TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE
+kubernetes   ClusterIP      10.96.0.1      <none>        443/TCP        40h
+kubia        LoadBalancer   10.98.171.15   127.0.0.1     80:32128/TCP   63s
+
+kubectl get po
+NAME             READY   STATUS    RESTARTS   AGE
+kubia-v1-8jg95   1/1     Running   0          68s
+kubia-v1-b8wwx   1/1     Running   0          68s
+kubia-v1-xdvht   1/1     Running   0          68s
+
+kubectl get rc
+NAME       DESIRED   CURRENT   READY   AGE
+kubia-v1   3         3         3       71s
+
+export KUBE_EDITOR=/usr/bin/vim
+kubectl edit rc
+...
+spec:
+  ...
+  template:
+    ...
+    spec:
+      containers:
+      - image: luksa/kubia:v2
+...
+
+while true ; do curl localhost ; sleep 1 ; done
+This is v1 running in pod kubia-v1-b8wwx
+This is v2 running in pod kubia-v1-bljp7
+This is v1 running in pod kubia-v1-xdvht
+This is v2 running in pod kubia-v1-bljp7
+This is v2 running in pod kubia-v1-bljp7
+```
+* 9.1.2 새 파드 기동과 이전 파드 삭제
+> v1, v2 모두 기동한 상태에서 selector 변경을 통해 업데이트를 수행합니다 
+* 2개의 프로젝트를 모두 기동합니다.
+  - v1 프로젝트 생성 후, 터널링을 통해 접근을 확인합니다
+  - 정상적으로 서비스가 기동되었다면 v2 도 기동합니다
+  - 여전히 v1 프로젝트가 서비스되고 있으며, ReplicationControllverV1, PodsV1 은 그대로 유지하되 ServiceV1 만 ServiceV2 를 바라보도록 수정합니다
+  - 프로젝트 확인 시에는 (svc -> po -> rc) 이용자가 접근하는 순서대로 체크합니다
+  - "set selector" 명령을 통해서 v1 의 selector 를 변경 후, 정상적으로 모든 서비스가 v2 로 바뀌었는지 확인합니다
+```bash
+kubectl create -f kubia-rc-and-service-v1.yaml
+minikube tunnel
+curl localhost
+
+kubectl create -f kubia-rc-and-service-v2.yaml
+
+kubectl get svc
+kubectl get po
+kubectl get rc
+
+kubectl set selector svc kubia app=kubia-v2
+service/kubia selector updated
+
+while true ; do curl localhost ; sleep 1 ; done
+This is v2 running in pod kubia-v2-hdc84
+This is v2 running in pod kubia-v2-gtjkk
+This is v2 running in pod kubia-v2-gtjkk
+This is v2 running in pod kubia-v2-6snkt
+This is v2 running in pod kubia-v2-hdc84
+This is v2 running in pod kubia-v2-hdc84
+```
+
+
+## 3. 디플로이먼트 리소스로 파드의 선언적 업데이트
+
+## 4. 롤링 업데이트 수행
+* 9.2 레플리케이션컨트롤러로 자동 롤링 업데이트 수행
+* 9.2.1 애플리케이션 초기 버전 실행
+  - 서비스 되고 있는 3개의 레플리케이션 서비스가 정상화인지 확인합니다
 ```bash
 while true; do curl localhost ; sleep 1 ; done
 This is v2 running in pod kubia-v2-vf8kw
@@ -110,6 +192,8 @@ This is v2 running in pod kubia-v2-prl59
 * 레플리케이션컨트롤러로 자동 롤링 업데이트 수행
   - 현재 v2 가 서비스 되고 있으므로 이 서비스를 v3 로 롤링업데이트 실습을 합니다
   - 최종 적으로 모든 서비스는 순차적으로 v3 로 전환되었습니다
+  - 참고로 동일한 태그로 이미지를 업데이트 한 경우 이미 존재하는 컨테이너는 과거 캐시를 그대로 사용하고, 신규 컨테이너는 최신 버전을 받게 됩니다
+  - 이러한 상황을 회피하기 위해서는 반드시 컨테이너의 imagePullPolycy 속성이 Always 로 설정되어야 합니다 (Default = IfNotPresent)
 ```bash
 bash>
 kubectl get svc
@@ -205,11 +289,13 @@ Events:
 ```bash
 kubectl rolling-update kubia-v2 kubia-v3 --image=luksa/kubia:v3 --v 6
 ```
+* ReplicationController 가 삭제되면 관리되는 파드도 같이 삭제됩니다
+  - rolling-update 를 통해 생성되었기 때문에 yaml 을 통해 깔끔한 삭제가 어렵습니다
+```bash
+kubectl delete rc kubia-v3
+kubectl get po
+```
 
-
-
-## 3. 디플로이먼트 리소스로 파드의 선언적 업데이트
-## 4. 롤링 업데이트 수행
 ## 5. 잘못된 버전의 롤아웃 자동 차단
 ## 6. 롤아웃 속도 제어
 ## 7. 이전 버전으로 파드 되돌리기
