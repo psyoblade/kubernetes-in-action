@@ -114,6 +114,7 @@ This is v2 running in pod kubia-v2-prl59
 
 * 프로젝트 생성 후, ReplicationController 변경 후 일부 파드만 삭제하였을 때에 삭제된 파드가 생성시에 v2 로 생성되는지 확인합니다
   - edit rc 시에 KUBE\_EDITOR 설정이 제대로 되어 있지 않으면 수정내역이 반영되지 않으므로 주의바랍니다
+![그림 9.2 Recreate Strategy](images/kia.9.2.png)
 ```bash
 kubectl create -f kubia-rc-and-service-v1.yaml
 
@@ -163,6 +164,7 @@ This is v2 running in pod kubia-v1-bljp7
   - 여전히 v1 프로젝트가 서비스되고 있으며, ReplicationControllverV1, PodsV1 은 그대로 유지하되 ServiceV1 만 ServiceV2 를 바라보도록 수정합니다
   - 프로젝트 확인 시에는 (svc -> po -> rc) 이용자가 접근하는 순서대로 체크합니다
   - "set selector" 명령을 통해서 v1 의 selector 를 변경 후, 정상적으로 모든 서비스가 v2 로 바뀌었는지 확인합니다
+![그림 9.3 Update Selector Strategy](images/kia.9.3.png)
 ```bash
 kubectl create -f kubia-rc-and-service-v1.yaml
 minikube tunnel
@@ -189,6 +191,7 @@ This is v2 running in pod kubia-v2-hdc84
 
 ## 2 레플리케이션컨트롤러로 자동 롤링 업데이트 수행
 > ReplicationController V1 -> V2 롤링 업데이트를 위해 v1 프로젝트를 통해 파드를 기동하고, 파라메터를 콤마 구분하여 get 명령어를 수행하면 3가지 오브젝트에 대한 결과를 다 얻을 수 있습니다
+![그림 9.4 Rolling Update Strategy](images/kia.9.4.png)
 ```bash
 kubectl create -f kubia-rc-and-service-v1.yaml 
 kubectl get svc,po,rc
@@ -320,6 +323,7 @@ Events:
   - 3. 정책에 따라 kubia-v2 는 0 에서 3개로, kubia-v1 은 3개에서 0개로 롤링 업데이트를 시작합니다
   - 4. 라벨 "app=kubia,deployment=...9baa" 이 신규로 배포된 v2 이며 정상적으로 파드가 생성됨을 확인 및 스케일링 되었습니다
   - 5. 반복적으로 파드 별로 모든 작업이 완료된 이후에 ReplicationControllerV1 은 DELETE 되었습니다.
+![그림 9.7 ReplicationController RollingUpdate](images/kia.9.7.png)
 ```bash
 bash>
 kubectl rolling-update kubia-v1 kubia-v2 --image=luksa/kubia:v2 --v 6
@@ -586,6 +590,7 @@ kubectl describe po kubia-7d5c456ffc-5q2ls | grep -i image
 ## 5 이전 버전으로 파드 되돌리기
 * 오류가 있는 버전을 롤백하기
   - 책에 명시한 버전은 서비스가 없기 때문에 테스트가 불가하여 kubia-deployment-and-service-v1.yaml 파일을 일부 수정해서 사용합니다
+![그림 9.11 Deployment Revision](images/kia.9.11.png)
 ```bash
 create -f kubia-deployment-and-service-v1.yaml --record
 
