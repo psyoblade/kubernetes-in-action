@@ -1,10 +1,8 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: parallel-completion-batch-job
+  name: batch-job
 spec:
-  completions: 5
-  parallelism: 2
   template:
     metadata:
       labels:
