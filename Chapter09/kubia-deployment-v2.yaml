@@ -1,4 +1,4 @@
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kubia
@@ -12,3 +12,6 @@ spec:
       containers:
       - image: luksa/kubia:v2
         name: nodejs
+  selector:
+    matchLabels:
+      app: kubia
