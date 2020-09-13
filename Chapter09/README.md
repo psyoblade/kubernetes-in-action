@@ -17,7 +17,7 @@
 cat ~/.bashrc
 export KUBE_EDITOR=/usr/bin/vim
 alias kc=kubectl
-alias getall="kubectl get svc,po,rc,rs,deployments"
+alias getall="kubectl get all"
 alias getalls="while true ; do kubectl get svc,po,rc,rs,deployments; echo; sleep 1; done"
 alias curls="while true; do curl localhost ; sleep 1 ; done"
 ```
