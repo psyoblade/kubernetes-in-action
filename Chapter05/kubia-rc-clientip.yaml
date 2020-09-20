@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: kubia-clientip
+spec:
+  replicas: 3
+  selector:
+    app: kubia-clientip
+  template:
+    metadata:
+      labels:
+        app: kubia-clientip
+    spec:
+      containers:
+      - name: kubia-clientip
+        image: luksa/kubia
+        ports:
+        - containerPort: 8080
