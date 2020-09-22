@@ -19,6 +19,12 @@
 ## 6. 서비스 문제 해결
 
 
+## 레퍼런스
+* [Create static Pods](https://kubernetes.io/docs/tasks/configure-pod-container/static-pod/)
+* [Multi-container pods and container communication in Kubernetes](https://www.mirantis.com/blog/multi-container-pods-and-container-communication-in-kubernetes/)
+* [Full Example of nginx.conf](https://www.nginx.com/resources/wiki/start/topics/examples/full/)
+
+
 ## 5.1 서비스 소개
 > 동일한 서비스를 제공하는 파드 그룹에 지속적인 단일 접점을 제공할 때에 생성하는 리소스이며, 각 서비스는 서비스가 존재하는 동안 절대 변경되지 않는 IP, PORT 가 있습니다
 ![kia.5.1](images/kia.5.1.png)
@@ -162,14 +168,80 @@ pod/kubia-named created
 ```
 
 ### 5.1.2 서비스 검색
+> 환경변수를 이용하는 방법과, DNS를 이용한 방법으로 IP 와 PORT 를 확인할 수 있습니다
+
+* 환경변수를 이용하는 방법
+```bash
+kubectl exec kubia-named env
+...
+KUBIA_NAMED_SERVICE_HOST=10.98.203.142
+KUBERNETES_SERVICE_HOST=10.96.0.1
+...
+```
+
+* DNS를 이용하는 방법
+
+* FQDN을 통한 서비스 연결
+  - kubia 는 서비스 이름이고, svc.cluster.local 은 로컬 서비스 이름에 사용되는 클러스터의 도메인 접미사입니다
+  - 같은 네임스페이스에 있는 경우 svc.cluster.local 과 namespace 는 생략이 가능하여 kubia 로 접근이 가능합니다
+```bash
+bash>
+kubectl exec -it kubia-4pkgl bash
+root@kubia-4pkgl:/# curl http://kubia
+You've hit kubia-x586c
+
+root@kubia-4pkgl:/# curl http://kubia.default.svc.cluster.local
+You've hit kubia-x586c
+
+root@kubia-4pkgl:/# curl http://kubia.default
+You've hit kubia-x586c
+
+# 파드 컨테이너 내부의 DNS resolver 구성을 확인할 수 있습니다 (쿠버네티스는 각 컨테이너의 /etc/resolv.conf 파일을 수정해서 적용합니다)
+root@kubia-4pkgl:/# cat /etc/resolv.conf
+nameserver 10.96.0.10
+search default.svc.cluster.local svc.cluster.local cluster.local
+options ndots:5
+```
+* 서비스 IP에 핑을 할 수 없는 이유
+  - 서비스의 클러스터의 IP가 *가상 IP* 이므로 서비스 포트와 결합된 경우에만 의미가 있습니다
+  - 즉, 파드(동일한 IP) 내에 여러 컨테이너 서비스를 포워드 할 수도 있기 때문에 IP+PORT 를 통해서 실제 컨테이너의 IP를 알 수 있기 때문입니다
+
+
+## 5.2 클러스터 외부에 있는 서비스 연결
+> 외부 요청이 클러스터 내부에 연결하는 여태까지의 서비스 기능과 반대로, 외부에 존재하는 서비스를 내부에서 접근할 수 있도록 외부 IP 와 PORT 로 연결을 전달할 수 있습니다
+
+### 5.2.1 서비스 엔드포인트 소개
+> 서비스는 파드와 직접 연결되지 않으며, 엔드포인트 리소스를 통해 연결됩니다. 그리고 파드 셀렉터는 엔드포인트를 생성할 때에 사용되는 질의문이라고 볼 수 있습니다
+* 서비스의 상세정보와 엔드포인트 정보를 확인합니다
+```bash
+bash> 
+kubectl describe service kubia
+Name:              kubia
+Namespace:         default
+Labels:            <none>
+Annotations:       <none>
+Selector:          app=kubia  # 엔드포인트 목록 조회에 사용되며, 컨테이너 접근시에 직접 활용되지 않습니다
+Type:              ClusterIP
+IP:                10.99.90.252
+Port:              <unset>  80/TCP
+TargetPort:        8080/TCP
+Endpoints:         172.18.0.5:8080,172.18.0.6:8080,172.18.0.7:8080  # 엔드포인트의 IP:PORT
+Session Affinity:  None
+Events:            <none>
+
+
+kubectl get endpoints kubia  # 엔드포인트는 항상 복수입니다
+NAME    ENDPOINTS                                         AGE
+kubia   172.18.0.5:8080,172.18.0.6:8080,172.18.0.7:8080   29m
+
+```
 
 
 
 
+## 9. 질문과 답변
 
-
-
-
-
-
+### 9.1 [PING 은 몇 번 PORT 일까?](https://m.blog.naver.com/ssamba/125695893)
+> 예전 부터 궁금해 했던 부분인데 좋은 블로그가 있어 참고 하였습니다. PING 은 ICMP(Internet Control Message Protocol) 라는 프로토콜을 기반으로 작성된 프로그램인데 OSI 7 Layer 상에서 IP/PORT 를 통해 전송 되는 Layer 는 Trasport 즉 4 Layer 이나, ICMP 는 3 Layer 에 해당하며 PORT 와는 무관합니다. 
+* [TCP/IP의 분해와 IP Address의 이해](https://m.blog.naver.com/ssamba/125712071)도 참고하면 좋겠습니다
 
