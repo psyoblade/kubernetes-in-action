@@ -10,9 +10,11 @@ spec:
     image: nginx
     ports:
     - name: http
-      containerPort: 80
+      port: 80
+      targetPort: 80
   - name: webapp
     image: luksa/kubia
     ports:
     - name: https
-      containerPort: 8080
+      port: 8080
+      targetPort: https

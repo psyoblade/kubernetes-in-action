@@ -6,7 +6,7 @@ spec:
   ports:
   - name: http
     port: 81
-    targetPort: http
+    targetPort: htp
   - name: https
     port: 82
     targetPort: https

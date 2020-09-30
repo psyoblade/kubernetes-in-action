@@ -12,10 +12,13 @@ spec:
         app: kubia-named
     spec:
       containers:
-      - name: kubia-named
-        image: luksa/kubia
+      - name: broker
+        image: nginx
         ports:
         - name: http
-          containerPort: 8080
+          containerPort: 80
+      - name: webapp
+        image: luksa/kubia
+        ports:
         - name: https
-          containerPort: 8443
+          containerPort: 8080

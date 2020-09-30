@@ -11,18 +11,57 @@
 서비스 문제 해결
 ```
 
-## 1. 단일 주소로 파드를 노출하는 서비스 리소스 만들기
-## 2. 클러스터 안에서 서비스 검색
-## 3. 외부 클라이언트에 서비스 노출
-## 4. 클러스터 내에서 외부 서비스 접속
-## 5. 파드가 서비스할 준비가 됐는지 제어하는 방법
-## 6. 서비스 문제 해결
 
+## 개요
 
-## 레퍼런스
+### 참고 링크 
 * [Create static Pods](https://kubernetes.io/docs/tasks/configure-pod-container/static-pod/)
 * [Multi-container pods and container communication in Kubernetes](https://www.mirantis.com/blog/multi-container-pods-and-container-communication-in-kubernetes/)
 * [Full Example of nginx.conf](https://www.nginx.com/resources/wiki/start/topics/examples/full/)
+
+### 준비 사항
+* 미니쿠베 및 대시보드 실행
+```bash
+bash> minikube start
+minikube dashboard
+```
+
+
+### 5.0 GKE (Google Kubernetes Engine) 환경 구성
+> 다음 챕터 부터는 Google Cloud 환경에서만 테스트할 수 있는 예제가 나와서 GKE 환경 구성을 수행합니다
+
+#### 5.0.1 컴포넌트 설치
+* [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) 설치
+* [GKE Quick Start](https://cloud.google.com/kubernetes-engine/docs/quickstart) 실습
+* 초기화 및 컨텍스트 확인
+```bash
+bash> gcloud container clusters create <cluster-name> --num-nodes=1
+NAME                        LOCATION           MASTER_VERSION  MASTER_IP      MACHINE_TYPE   NODE_VERSION    NUM_NODES  STATUS
+<cluster-name>  asia-northeast3-a  1.15.12-gke.20  34.64.201.234  n1-standard-1  1.15.12-gke.20  1          RUNNING
+
+bash> gcloud container clusters get-credentials <cluster-name>
+Fetching cluster endpoint and auth data.
+kubeconfig entry generated for psyoblade-container-284316.
+
+bash> kubectl config get-contexts  # 현재 구성된 쿠버네티스 컨텍스트를 확인합니다
+CURRENT   NAME                      CLUSTER                   AUTHINFO                    NAMESPACE
+          docker-desktop            docker-desktop            docker-desktop
+          docker-for-desktop        docker-desktop            docker-desktop
+*         gke_psyoblade-container   gke_psyoblade-container   gke_psyoblade-container
+          minikube                  minikube                  minikube
+
+bash> kubectl config use-context minikube  # 명령을 통해 컨텍스트 스위치가 가능합니다
+CURRENT   NAME                      CLUSTER                   AUTHINFO                    NAMESPACE
+*         minikube                  minikube                  minikube
+
+```
+* 디플로이먼트를 생성 및 포트를 노출합니다
+  - 정상 수행 되었다면 deployment 를 삭제합니다
+```bash
+bash> kubectl create deployment hello-server --image=gcr.io/google-samples/hello-app:1.0
+
+bash> kubectl expose deployment hello-server --type LoadBalancer --port 80 --target-port 8080
+```
 
 
 ## 5.1 서비스 소개
@@ -49,10 +88,11 @@ spec:
     app: kubia
 ```
 * 간단한 웹서버와 이를 연결하는 서비스를 구성합니다
-  - 1. 서비스를 생성하고, 내부 IP 할당이 되었는지 확인합니다
-  - 2. 책에서는 별도의 파드생성이 없기 때문에 4장에서 사용했던 kubia-rc.yaml 파일을 이용하여 파드를 생성합니다
-  - 3. 생성된 서비스에 대해 정상여부를 확인하기 위해 ```kubectl exec``` 명령어를 통해 curl 커맨드를 이용합니다
-  - 명령어의 더블 대시(--)는 kubectl 명령줄 옵션의 끝을 의미합니다. 즉, -- 이후의 모든 문자열은 파드 내에서 실행되는 명령어 이며, 명령줄 내에 대시로 시작하는 인수가 없다면 더블대시를 사용할 필요는 없습니다
+  - 서비스를 생성하고, 내부 IP 할당이 되었는지 확인합니다
+  - 책에서는 별도의 파드생성이 없기 때문에 4장에서 사용했던 kubia-rc.yaml 파일을 이용하여 파드를 생성합니다
+  - 생성된 서비스에 대해 정상여부를 확인하기 위해 ```kubectl exec``` 명령어를 통해 curl 커맨드를 이용합니다
+  - 명령어의 더블 대시(--)는 kubectl 명령줄 옵션의 끝을 의미합니다. 
+  - 즉, -- 이후의 모든 문자열은 파드 내에서 실행되는 명령어 이며, 명령줄 내에 대시로 시작하는 인수가 없다면 더블대시를 사용할 필요는 없습니다
 ```bash
 bash> # 1. 서비스를 생성합니다
 kubectl create -f kubia-svc.yaml
@@ -89,7 +129,8 @@ You've hit kubia-txc9c
 * 명령어를 수행하는 과정에 대한 설명
 ![kia.5.3](images/kia.5.3.png)
 * 서비스의 세션 어피니티 구성
-> 동일한 ClientIP 에 대해서 동일한 파드로 서비스를 제공할 수 있도록 리다이렉트 할 수 있도록 SessionAffinity 속성을 None(Default) -> ClientIP 로 설정합니다
+  - 동일한 ClientIP 에 대해서 동일한 파드로 서비스를 제공할 수 있도록 리다이렉트 할 수 있도록 SessionAffinity 속성을 None(Default) -> ClientIP 로 설정합니다
+  - 기존에 생성된 파드를 바라보도록 레이블셀렉터는 kubia 로 설정합니다
 ```yaml
 apiVersion: v1
 kind: Service
@@ -101,7 +142,7 @@ spec:
   - port: 80
     targetPort: 8080
   selector:
-    app: kubia-client-ip
+    app: kubia
 ```
 * 세션 어피니티 속성을 주고 테스트합니다
   - 쿠버네티스는 None 과 ClientIP 두 가지의 서비스 세션 어피니티만 지원합니다
@@ -124,77 +165,127 @@ You've hit kubia-clientip-vhmx7
 kubectl get svc kubia-clientip -o json | grep sessionAffinity
 ```
 * 좀 더 단순한 예제를 위해 정적인 파드 설정파일을 생성합니다
-```yaml
+  - 현재 luksa/kubia 이미지는 8080 포트를 사용하도록 작성된 이미지이므로 80, 8080 포트를 바라보도록 2개의 파드를 생성합니다
+```bash
+bash> cat kubia-po-named.yml
 apiVersion: v1
 kind: Pod
 metadata:
   name: kubia-named
+  labels:
+    app: kubia-named
 spec:
   containers:
-  - name: kubia-named
-    image: luksa/kubia
+  - name: broker
+    image: nginx
     ports:
     - name: http
-      containerPort: 8080
+      containerPort: 80
+  - name: webapp
+    image: luksa/kubia
+    ports:
     - name: https
-      containerPort: 8443
+      containerPort: 8080
 ```
 * 해당 파드를 바라보는 서비스를 구성합니다
-```yaml
+  - 해당 http, https 를 바라보는 포트를 81, 82 번으로 구성합니다
+  - 이렇게 구성하는 경우 향후 서비스 수준에서 포트 변경에 자유롭게 됩니다
+```bash
+bash> cat kubia-svc-named.yml
 apiVersion: v1
-kind: Pod
+kind: Service
 metadata:
   name: kubia-named
 spec:
-  containers:
-  - name: kubia-named
-    image: luksa/kubia
-    ports:
-    - name: http
-      containerPort: 8080
-    - name: https
-      containerPort: 8443
+  ports:
+  - name: http
+    port: 81
+    targetPort: http
+  - name: https
+    port: 82
+    targetPort: https
+  selector:
+    app: kubia-named
 ```
-* [TODO] 동일한 서비스에서 여러 개의 포트 노출 <-- ***실습이 제대로 이루어지지 않아 다시 확인해 보아야 하는 부분***
-  - 파드 하나에 여러개의 포트(http:80, https:443)를 노출하는 경우에도 하나의 서비스로 멀티포트를 지원할 수 있습니다
+* 하나의 파드에 여러개의 어플리케이션을 실행하는 rc 를 구성합니다
+  - 별도의 파드를 통한 실행은 계속 실패(kubia-po-named.yml)하여 리플리케이션 컨트롤러(kubia-rc-named.yml)를 통해 수행합니다
+  - 해당 파드를 서비스하는 멀티포트 서비스를 실행합니다
+  - 단, replicas=3 의 경우는 잘 동작하지만 replicas=1 이나 pods 만 구성 시에는 제대로 동작하지 않습니다
 ```bash
-bash>
-kubectl create -f kubia-svc-named-ports.yaml
+bash> kubectl create -f kubia-rc-named.yml
+kubectl get pods
+NAME                    READY   STATUS    RESTARTS   AGE
+pod/kubia-4pkgl         1/1     Running   1          9d
+pod/kubia-h76qz         1/1     Running   1          9d
+pod/kubia-named-qd5x7   2/2     Running   0          31s
+pod/kubia-named-v8wfw   2/2     Running   0          31s
+pod/kubia-named-xsnwb   2/2     Running   0          31s
+pod/kubia-x586c         1/1     Running   1          9d
+
+bash> kubectl create -f kubia-svc-named-ports.yaml
 service/kubia-named created
 
-kubectl create -f kubia-po-named.yaml
-pod/kubia-named created
+bash> kubectl get services kubia-named
+NAME                     TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)         AGE
+service/kubia-named      ClusterIP   10.111.243.221   <none>        81/TCP,82/TCP   37m
+
+bash> kubectl exec kubia-named-kvcwv -c broker -- curl -s 10.111.243.221:81
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+...
+
+bash> kubectl exec kubia-named-kvcwv -c broker -- curl -s 10.111.243.221:82
+You've hit kubia-named-v8wfw
 
 ```
 
 ### 5.1.2 서비스 검색
-> 환경변수를 이용하는 방법과, DNS를 이용한 방법으로 IP 와 PORT 를 확인할 수 있습니다
+> 환경변수를 이용하는 방법과, DNS를 이용한 방법으로 IP 와 PORT 를 확인할 수 있는데요, 쿠버네티스는 *항상 파드가 시작되는 시점에 각 서비스를 기리키는 환경변수 세트를 초기화*합니다
 
-* 환경변수를 이용하는 방법
+* 환경변수를 통한 방법
+  - env 명령을 통해 해당 파드의 환경변수를 확인합니다
+  - 해당 서비스명을 특수문자 치환과 대문자 처리된 prefix 를 붙여 서비스의 환경변수 키를 지정합니다
 ```bash
-kubectl exec kubia-named env
+bash> kubectl exec kubia-named env
 ...
-KUBIA_NAMED_SERVICE_HOST=10.98.203.142
 KUBERNETES_SERVICE_HOST=10.96.0.1
+KUBERNETES_SERVICE_PORT=443
+...
+KUBIA_NAMED_SERVICE_HOST=10.111.90.78   # 서비스의 클러스터IP 
+KUBIA_NAMED_SERVICE_PORT=81             # 서비스의 포트
 ...
 ```
 
 * DNS를 이용하는 방법
+  - kube-system 네임스페이스에는 kube-dns 라고 하는 서비스가 존재하며 이는 DNS 서버를 실행하는 파드를 통해, 클러스터에서 실행중인 모든 파드는 자동으로 이를 사용하도록 구성됩니다
+  - 쿠버네티스는 각 컨테이너의 /etc/resolv.conf 파일을 수정해 이를 수행하며, *파드에서 실행 중인 프로세스의 모든 DNS 쿼리는 쿠버네티스 자체 DNS 서버로 처리*됩니다
+    + 파드 내부 DNS 사용여부는 각 파드 스펙의 dnsPolicy 속성으로 구성할 수 있습니다
+  - 각 서비스는 내부 DNS 서버에서 DNS 항목을 가져오고, 서비스 이름을 알고 있는 클라이언트 파드는 환경변수 대신 FQDN(Fully Qualified Domain Name, 정규화된 도메인 이름)으로 액세스가 가능합니다
+```bash
+bash> kubectl get svc -n kube-system -o wide | grep -i dns
+kube-dns   ClusterIP   10.96.0.10   <none>        53/UDP,53/TCP,9153/TCP   28d   k8s-app=kube-dns
+
+bash> kubectl describe po coredns-66bff467f8-dgbf6 -n kube-system | grep kube-dns
+Labels:               k8s-app=kube-dns
+```
 
 * FQDN을 통한 서비스 연결
-  - kubia 는 서비스 이름이고, svc.cluster.local 은 로컬 서비스 이름에 사용되는 클러스터의 도메인 접미사입니다
+  - kubia 는 서비스 이름이고, *svc.cluster.local 은 로컬 서비스 이름에 사용되는 클러스터의 도메인 접미사*입니다
   - 같은 네임스페이스에 있는 경우 svc.cluster.local 과 namespace 는 생략이 가능하여 kubia 로 접근이 가능합니다
+
 ```bash
 bash>
 kubectl exec -it kubia-4pkgl bash
-root@kubia-4pkgl:/# curl http://kubia
-You've hit kubia-x586c
+root@kubia-4pkgl:/# curl http://kubia-named
+You've hit kubia-named-x586c
 
-root@kubia-4pkgl:/# curl http://kubia.default.svc.cluster.local
-You've hit kubia-x586c
+root@kubia-4pkgl:/# curl http://kubia-named.default.svc.cluster.local
+You've hit kubia-named-x586c
 
-root@kubia-4pkgl:/# curl http://kubia.default
-You've hit kubia-x586c
+root@kubia-4pkgl:/# curl http://kubia-named.default
+You've hit kubia-named-x586c
 
 # 파드 컨테이너 내부의 DNS resolver 구성을 확인할 수 있습니다 (쿠버네티스는 각 컨테이너의 /etc/resolv.conf 파일을 수정해서 적용합니다)
 root@kubia-4pkgl:/# cat /etc/resolv.conf
@@ -215,12 +306,12 @@ options ndots:5
 * 서비스의 상세정보와 엔드포인트 정보를 확인합니다
 ```bash
 bash> 
-kubectl describe service kubia
-Name:              kubia
+kubectl describe service kubia-named
+Name:              kubia-named
 Namespace:         default
 Labels:            <none>
 Annotations:       <none>
-Selector:          app=kubia  # 엔드포인트 목록 조회에 사용되며, 컨테이너 접근시에 직접 활용되지 않습니다
+Selector:          app=kubia-named  # 엔드포인트 목록 조회에 사용되며, 컨테이너 접근시에 직접 활용되지 않습니다
 Type:              ClusterIP
 IP:                10.99.90.252
 Port:              <unset>  80/TCP
@@ -230,13 +321,111 @@ Session Affinity:  None
 Events:            <none>
 
 
-kubectl get endpoints kubia  # 엔드포인트는 항상 복수입니다
+kubectl get endpoints kubia-named  # 엔드포인트는 항상 복수입니다
 NAME    ENDPOINTS                                         AGE
-kubia   172.18.0.5:8080,172.18.0.6:8080,172.18.0.7:8080   29m
+kubia-named   172.18.0.5:8080,172.18.0.6:8080,172.18.0.7:8080   29m
+```
 
+### 5.2.2 서비스 엔드포인트 수동 구성
+> 파드 셀렉터 없이 서비스를 생성하면 쿠버네티스는 엔드포인트 리소스를 생성할 수 없으며, 직접 생성해야만 한다.
+![Pods consuming a service with two external endpoints](images/kia.5.4.png)
+
+* 셀렉터 없는 서비스 생성
+  - 라벨 셀렉터가 없는 서비스 파일을 생성하여, *쿠버네티스 클러스터 외부 인터넷 서비스와 연동 가능한 서비스를 생성*할 수 있습니다.
+  - 추후 해당 외부 서비스를 쿠버네티스 서비스로 전환 시에 라벨 셀렉터를 추가하여 마이그레이션이 가능합니다
+```bash
+bash> cat external-service.yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-service
+spec:
+  ports:
+  - port: 80
+
+bash> cat external-service-endpoints.yaml
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: external-service
+subsets:
+  - addresses:
+    - ip: 11.11.11.11
+    - ip: 22.22.22.22
+    ports:
+    - port: 80 
+```
+
+### 5.2.3 외부 서비스를 위한 별칭 생성
+> 서비스의 엔드포인트를 수동으로 구성하는 방법 외에도 FQDN을 통해 참조할 수도 있습니다.
+
+* *ExternalName* 서비스 생성
+  - 서비스가 생성되면 FQDN 대신 external-service.default.svc.cluster.local 혹은 external-service 로 외부 서비스에 연결이 가능합니다 
+  - 이렇게 외부 서비스에 대한 정보를 숨기고 서비스 유지 개선이 가능합니다
+  - ExternalName 서비스는 DNS 레벨에서만 구현되며, [CNAME DNS](https://dev.plusblog.co.kr/30) 레코드(A레코드와 같은 IP가 아니라 별칭 Domain 주소)가 생성되므로 ClusterIP 를 얻지는 못합니다
+```bash
+bash> cat external-service-externalname.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-service
+spec:
+  type: ExternalName
+  externalName: someapi.somecompany.com
+  ports:
+  - port: 80
 ```
 
 
+
+## 5.3 외부 클라이언트에 서비스 노출
+> 지금까지는 클러스터 내부에서 파드가 서비스를 이용했으나, 외부 클라이언트가 서비스를 호출하는 경우에 대해 학습합니다. 외부에 서비스를 노출하는 방법은 3가지(NodePort, LoadBalancer, Ingress) 정도가 존재합니다
+
+![Exposing a service to external clients](images/kia.5.5.png)
+
+### 5.3.1 노드포트 서비스 사용
+> 모든 노드에 특정 포트를 할당하고, 대응하는 외부 요청을 파드에 전달합니다
+![An external client connecting to a NodePort service either through Node 1 or 2](images/kia.5.6.png)
+* 노드포트 서비스 생성
+  - 책에서는 EXTERNAL-IP 설정에 <nodes> 라고 나온다고 하지만 실제 minikube 및 GKE 환경에서는 <none>으로 출력됩니다
+```bash
+bash> cat kubia-svc-nodeport.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia-nodeport
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 8080
+    nodePort: 30123
+  selector:
+    app: kubia
+
+bash> kubectl get svc kubia-nodeport -o wide
+NAME             TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE   SELECTOR
+kubia-nodeport   NodePort   10.3.243.117   <none>        80:30123/TCP   56s   app=kubia
+```
+* 외부 클라이언트가 노트포트에 액세스하기 위한 방화벽 오픈 
+  - 노드포트를 통해 서비스에 접근하기 위해서는 외부 연결을 허용하기 위한 GCP 수준의 방화벽 구성이 필요합니다
+  - "VPC network > Firewall" 에서 확인 할 수 있습니다
+```bash
+bash> gcloud compute firewall-rules create kubia-svc-rule --allow=tcp:30123
+```
+* JSONPath 를 이용하여 모든 노드의 IP 가져오기
+  - 이와 같이 인터넷 어디서든 노드의 IP 로 접근이 가능하지만, *특정 노드의 장애 시에 임의의 노드에 접근가능하도록 로드밸런서를 배치*하는 편이 좋다
+```bash
+bash> kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="ExternalIP")].address}'
+34.64.85.181 34.64.113.8 34.64.190.161 34.64.238.210
+
+bash> for ip in `kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="ExternalIP")].address}'`; do curl -s http://$ip:30123; done
+You've hit kubia-vp2tg
+You've hit kubia-7jx9t
+You've hit kubia-7jx9t
+You've hit kubia-pdjkh
+```
 
 
 ## 9. 질문과 답변

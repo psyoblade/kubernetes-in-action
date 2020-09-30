@@ -8,5 +8,4 @@ spec:
   - port: 80
     targetPort: 8080
   selector:
-    app: kubia-clientip
-
+    app: kubia
