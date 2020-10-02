@@ -4,7 +4,7 @@ metadata:
   name: kubia
 spec:
   rules:
-  - host: kubia.example.com
+  - host: kubia.suhyuk.me
     http:
       paths:
       - path: /

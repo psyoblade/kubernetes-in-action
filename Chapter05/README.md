@@ -174,7 +174,6 @@ kubectl get svc kubia-clientip -o json | grep sessionAffinity
   - 현재 luksa/kubia 이미지는 8080 포트를 사용하도록 작성된 이미지이므로 80, 8080 포트를 바라보도록 2개의 파드를 생성합니다
 ```bash
 bash> cat kubia-po-named.yml
-
 apiVersion: v1
 kind: Pod
 metadata:
@@ -199,7 +198,6 @@ spec:
   - 이렇게 구성하는 경우 향후 서비스 수준에서 포트 변경에 자유롭게 됩니다
 ```bash
 bash> cat kubia-svc-named.yml
-
 apiVersion: v1
 kind: Service
 metadata:
@@ -297,7 +295,6 @@ You've hit kubia-named-x586c
 
 # 파드 컨테이너 내부의 DNS resolver 구성을 확인할 수 있습니다 (쿠버네티스는 각 컨테이너의 /etc/resolv.conf 파일을 수정해서 적용합니다)
 root@kubia-4pkgl:/# cat /etc/resolv.conf
-
 nameserver 10.96.0.10
 search default.svc.cluster.local svc.cluster.local cluster.local
 options ndots:5
@@ -344,7 +341,6 @@ kubia-named   172.18.0.5:8080,172.18.0.6:8080,172.18.0.7:8080   29m
   - 추후 해당 외부 서비스를 쿠버네티스 서비스로 전환 시에 라벨 셀렉터를 추가하여 마이그레이션이 가능합니다
 ```bash
 bash> cat external-service.yml
-
 apiVersion: v1
 kind: Service
 metadata:
@@ -354,7 +350,6 @@ spec:
   - port: 80
 
 bash> cat external-service-endpoints.yaml
-
 apiVersion: v1
 kind: Endpoints
 metadata:
@@ -376,7 +371,6 @@ subsets:
   - ExternalName 서비스는 DNS 레벨에서만 구현되며, [CNAME DNS](https://dev.plusblog.co.kr/30) 레코드(A레코드와 같은 IP가 아니라 별칭 Domain 주소)가 생성되므로 ClusterIP 를 얻지는 못합니다
 ```bash
 bash> cat external-service-externalname.yaml
-
 apiVersion: v1
 kind: Service
 metadata:
@@ -402,7 +396,6 @@ spec:
   - 책에서는 EXTERNAL-IP 설정에 <nodes> 라고 나온다고 하지만 실제 minikube 및 GKE 환경에서는 <none>으로 출력됩니다
 ```bash
 bash> cat kubia-svc-nodeport.yaml
-
 apiVersion: v1
 kind: Service
 metadata:
@@ -447,7 +440,6 @@ You've hit kubia-pdjkh
   - AWS, GCP, Azure 와 같은 Cloud Provider 에서 실행하는 경우 인프라에서 제공하는 로드밸런서를 자동으로 프로비저닝해 주며, Minikube 의 경우는 지원하지 않습니다.
 ```bash
 bash> cat kubia-svc-loadbalancer.yaml
-
 apiVersion: v1
 kind: Service
 metadata:
@@ -497,6 +489,106 @@ External Traffic Policy:  Cluster
 
 
 ## 5.4 인그레스 리소스로 서비스 외부 노출
+> LB 서비스는 IP 주소를 기준으로 서비스를 연결해 주지만 Ingress 서비스는 한 IP 주소로 수십 개의 서비스에 접근이 가능하도록 지원해 줍니다. Ingress 는 네트워크 스택의 Application Layer 즉, HTTP 에서 동작하며, 쿠키 기반 세션 어피니티 등과 같은 기능을 제공할 수 있습니다.
+> LoadBalancer 가 L4 라고 하면 Ingress 는 L7 이라고 말할 수 있겠습니다.
+![Multiple services can be exposed through a single Ingress](images/kia.5.9.png)
+
+* Minikube Ingress addons 활성화
+  - GCP 상에서 기동되는 파드가 이렇게나 많을 줄은 몰랐네요, kube-system 네임스페이스에서 기동되는 파드가 어마어마합니다
+```bash
+bash> minikube addons list
+...
+- ingress: disabled
+...
+bash> minikube addons enable ingress
+
+bash> kubectl get po --all-namespaces  # 모든 네임 스페이스에서 모든 파드를 출력합니다 
+NAMESPACE     NAME                                                             READY   STATUS    RESTARTS   AGE
+default       kubia-4xjjt                                                      1/1     Running   0          5h23m
+default       kubia-7nvqb                                                      1/1     Running   0          5h23m
+default       kubia-p7njg                                                      1/1     Running   0          5h23m
+kube-system   event-exporter-v0.3.0-5cd6ccb7f7-v8bt6                           2/2     Running   0          2d
+kube-system   fluentd-gcp-scaler-6855f55bcc-l5f8h                              1/1     Running   0          2d
+kube-system   fluentd-gcp-v3.1.1-64phf                                         2/2     Running   0          5h22m
+kube-system   fluentd-gcp-v3.1.1-ft96k                                         2/2     Running   0          5h22m
+kube-system   fluentd-gcp-v3.1.1-vrmlp                                         2/2     Running   0          2d
+kube-system   fluentd-gcp-v3.1.1-vz87r                                         2/2     Running   0          5h22m
+kube-system   heapster-gke-6d5d65c667-s8dj9                                    3/3     Running   0          2d
+kube-system   kube-dns-5c446b66bd-bbvkl                                        4/4     Running   0          2d
+kube-system   kube-dns-5c446b66bd-hwsql                                        4/4     Running   0          5h22m
+kube-system   kube-dns-autoscaler-6b7f784798-v7dfc                             1/1     Running   0          2d
+kube-system   kube-proxy-gke-psyoblade-container--default-pool-1b2bb42a-731g   1/1     Running   0          2d
+kube-system   kube-proxy-gke-psyoblade-container-284316-pool-1-eca67292-3wbv   1/1     Running   0          5h22m
+kube-system   kube-proxy-gke-psyoblade-container-284316-pool-1-eca67292-dw2c   1/1     Running   0          5h22m
+kube-system   kube-proxy-gke-psyoblade-container-284316-pool-1-eca67292-qbh1   1/1     Running   0          5h22m
+kube-system   l7-default-backend-84c9fcfbb-88vpv                               1/1     Running   0          2d
+kube-system   metrics-server-v0.3.3-fdc67d4b6-sw2pd                            2/2     Running   0          2d
+kube-system   prometheus-to-sd-ds8ws                                           2/2     Running   0          5h22m
+kube-system   prometheus-to-sd-h4k4r                                           2/2     Running   0          5h22m
+kube-system   prometheus-to-sd-hc25h                                           2/2     Running   0          5h22m
+kube-system   prometheus-to-sd-kslhk                                           2/2     Running   0          2d
+kube-system   stackdriver-metadata-agent-cluster-level-6b7c498f59-8v42p        2/2     Running   0          2d
+```
+
+### 5.4.1 인그레스 리소스 생성 
+* kubia.example.com 으로 요청되는 모든 HTTP 요청을 지정된 kubia-nodeport 80 포트로 전송하는 규칙을 정의합니다 
+  - 5.3 장에서 생성한 NodePort 서비스가 기동되어 있어야 제대로 동작합니다
+  - "NodePort + FirewallOpen" 방식, "LoadBalancer" 방식 그리고 "NodePort + Ingress" 이렇게 3가지가 가능합니다
+```bash
+bash> cat kubia-ingress.yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: kubia
+spec:
+  rules:
+  - host: kubia.example.com
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: kubia-nodeport
+          servicePort: 80
+```
+
+### 5.4.2 인그레스로 서비스 액세스
+* 인그레스의 IP 주소 얻기
+  - 얻어낸 IP를 이용해서 /etc/hosts 파일에 추가합니다
+  - GCP 환경에서도 약 1분 정도 소요되므로 인내심을 가지고 기다려야 합니다
+```bash
+bash> kubectl get ingresses
+NAME    HOSTS             ADDRESS          PORTS   AGE
+kubia   kubia.suhyuk.me   34.107.227.125   80      67s
+
+bash> cat /etc/hosts
+34.107.227.125  kubia.suhyuk.me
+
+bash> for x in $(seq 1 5); do curl -s http://kubia.suhyuk.me/ ; sleep 0.5 ; done
+You've hit kubia-p7njg
+You've hit kubia-p7njg
+You've hit kubia-4xjjt
+You've hit kubia-4xjjt
+You've hit kubia-4xjjt
+```
+
+* 인그레스 동작방식 이해
+  - 클라이언트의 DNS(hosts) 조회 통해 Ingress Controller 의 IP 를 획득합니다 
+  - HTTP 요청을 통해 Request Header 에 "Host: kubia.suhyk.me" 와 함께 HTTP GET 요청을 합니다 
+  - 인그레스 컨트롤러는 해당 헤더에서 액세스하려는 서비스를 결정하고 엔드포인트 오브젝트로 파드 IP를 조회합니다
+  - 최종 획득한 IP 를 통해서 개별 파드에 요청을 컨트롤러가 전달합니다
+```bash
+# Request Header parsed
+GET / HTTP/1.1
+Host: kubia.suhyuk.me
+Connection: keep-alive
+Cache-Control: max-age=0
+Upgrade-Insecure-Requests: 1
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9
+Accept-Encoding: gzip, deflate
+Accept-Language: ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7
+```
+![Accessing pods through an Ingress](images/kia.5.10.png)
 
 
 
