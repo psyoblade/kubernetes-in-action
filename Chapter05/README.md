@@ -27,10 +27,16 @@ minikube dashboard
 ```
 
 
-### 5.0 GKE (Google Kubernetes Engine) 환경 구성
+## 5.0 GKE (Google Kubernetes Engine) 환경 구성
 > 다음 챕터 부터는 Google Cloud 환경에서만 테스트할 수 있는 예제가 나와서 GKE 환경 구성을 수행합니다
 
-#### 5.0.1 컴포넌트 설치
+
+### 5.0.1 용어 이해
+* [Region & Zone](https://cloud.google.com/compute/docs/regions-zones)
+* [Working with Quotas](https://cloud.google.com/docs/quota)
+* [Resizing a cluster](https://cloud.google.com/kubernetes-engine/docs/how-to/resizing-a-cluster)
+
+### 5.0.2 컴포넌트 설치
 * [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) 설치
 * [GKE Quick Start](https://cloud.google.com/kubernetes-engine/docs/quickstart) 실습
 * 초기화 및 컨텍스트 확인
@@ -168,6 +174,7 @@ kubectl get svc kubia-clientip -o json | grep sessionAffinity
   - 현재 luksa/kubia 이미지는 8080 포트를 사용하도록 작성된 이미지이므로 80, 8080 포트를 바라보도록 2개의 파드를 생성합니다
 ```bash
 bash> cat kubia-po-named.yml
+
 apiVersion: v1
 kind: Pod
 metadata:
@@ -192,6 +199,7 @@ spec:
   - 이렇게 구성하는 경우 향후 서비스 수준에서 포트 변경에 자유롭게 됩니다
 ```bash
 bash> cat kubia-svc-named.yml
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -289,6 +297,7 @@ You've hit kubia-named-x586c
 
 # 파드 컨테이너 내부의 DNS resolver 구성을 확인할 수 있습니다 (쿠버네티스는 각 컨테이너의 /etc/resolv.conf 파일을 수정해서 적용합니다)
 root@kubia-4pkgl:/# cat /etc/resolv.conf
+
 nameserver 10.96.0.10
 search default.svc.cluster.local svc.cluster.local cluster.local
 options ndots:5
@@ -335,6 +344,7 @@ kubia-named   172.18.0.5:8080,172.18.0.6:8080,172.18.0.7:8080   29m
   - 추후 해당 외부 서비스를 쿠버네티스 서비스로 전환 시에 라벨 셀렉터를 추가하여 마이그레이션이 가능합니다
 ```bash
 bash> cat external-service.yml
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -344,6 +354,7 @@ spec:
   - port: 80
 
 bash> cat external-service-endpoints.yaml
+
 apiVersion: v1
 kind: Endpoints
 metadata:
@@ -365,6 +376,7 @@ subsets:
   - ExternalName 서비스는 DNS 레벨에서만 구현되며, [CNAME DNS](https://dev.plusblog.co.kr/30) 레코드(A레코드와 같은 IP가 아니라 별칭 Domain 주소)가 생성되므로 ClusterIP 를 얻지는 못합니다
 ```bash
 bash> cat external-service-externalname.yaml
+
 apiVersion: v1
 kind: Service
 metadata:
@@ -426,6 +438,66 @@ You've hit kubia-7jx9t
 You've hit kubia-7jx9t
 You've hit kubia-pdjkh
 ```
+
+### 5.3.2 외부 로드밸런서로 서비스 노출
+> 공개적으로 액세스 가능한 고유한 IP 주소를 가지며 모든 연결을 서비스로 전달합니다. 따라서 로드밸런서의 IP 주소로 서비스에 액세스 할 수 있습니다. 마치 L4, L7 과 유사해 보입니다.
+> 즉, **LoadBalancer 서비스는 추가 인프라 제공 로드밸런서가 있는 NodePort 서비스**라고 말할 수 있습니다
+
+* 로드밸런서 서비스 생성
+  - AWS, GCP, Azure 와 같은 Cloud Provider 에서 실행하는 경우 인프라에서 제공하는 로드밸런서를 자동으로 프로비저닝해 주며, Minikube 의 경우는 지원하지 않습니다.
+```bash
+bash> cat kubia-svc-loadbalancer.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubia-loadbalancer
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: kubia
+```
+* 로드밸런서를 통한 외부 접속 테스트
+  - 노드포트 서비스와 다르게 방화벽 설정 없이 외부 접속이 가능합니다
+```bash
+bash> for x in $(seq 1 5); do curl -s http://34.64.113.8/ ; sleep 0.5 ; done
+You've hit kubia-7nvqb
+You've hit kubia-4xjjt
+You've hit kubia-7nvqb
+You've hit kubia-7nvqb
+You've hit kubia-p7njg
+```
+* 웹 브라우저를 통한 접근은 매번 같은 파드를 호출하는데...
+  - Session Affinity 노 None 이지만 브라우저의 keep-alive 연결을 통해 같은 연결로 요청을 보내기 때문입니다
+  - 포트를 지정하지 않으면 NodePort 의 포트가 임의의 포트로 쿠버네티스가 알아서 지정합니다
+```bash
+bash> kubectl describe svc kubia-loadbalancer
+...
+TargetPort:               8080/TCP
+NodePort:                 <unset>  32584/TCP
+Session Affinity:         None
+External Traffic Policy:  Cluster
+...
+```
+* Advanced REST client 와 같은 도구를 통해 close Connection 을 수행해 봅니다
+  - Request Header 의 "Connection:close" 설정을 하면 매번 변경되는 것을 확인할 수 있습니다
+![An external client connecting to a LoadBalancer service](images/kia.5.7.png)
+
+### 5.3.3 외부 연결의 특성 이해
+* 불필요한 네트워크 홉의 이해와 예방
+  - 외부 클라이언트가 NodePort 를 통해 서비스에 접속할 경우 LoadBalancer 의 경우 임의의 노드를 선택하고, 다시 임의의 선택된 파드가 해당 노드에는 없을 수도 있는데 이러한 경우 *추가적인 네트워크 홉*이 필요할 수 있습니다
+  - 이러한 상황을 피하기 위해 externalTrafficPolicy 필드를 Local 로 지정할 수 있으며 서비스 프록시는 로컬에 실행 중인 파드를 선택하게 됩니다
+  - 다만, 노드가 2개이고, 파드가 3개인 경우 2개의 파드가 존재하는 노드에는 부하 분산이 덜 되므로 총 50%, 25%, 25% 로 부하분산이 제대로 되지 않는 문제가 발생합니다
+![A Service using the Local external traffic policy may lead to uneven load distribution across pods](images/kia.5.8.png)
+* 클라이언트 IP가 보존되지 않음 인식
+  - NodePort 를 통해 서비스되는 경우 패킷에서 *소스 네트워크 주소 변환*(SNAT)이 발생하여 파드는 실제 클라이언트의 IP를 알아낼 수가 없지만, Local External Traffic Policy 정책의 경우 추가 홉이 발생하지 않기 때문에 [원본 소스 IP 주소를 보존합니다](https://kubernetes.io/ko/docs/tutorials/services/source-ip/#type-nodeport-%EC%9D%B8-%EC%84%9C%EB%B9%84%EC%8A%A4%EC%97%90%EC%84%9C-%EC%86%8C%EC%8A%A4-ip).
+
+
+## 5.4 인그레스 리소스로 서비스 외부 노출
+
 
 
 ## 9. 질문과 답변
