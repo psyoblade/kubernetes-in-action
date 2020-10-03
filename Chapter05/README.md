@@ -591,6 +591,246 @@ Accept-Language: ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7
 ![Accessing pods through an Ingress](images/kia.5.10.png)
 
 
+### 5.4.3 하나의 인그레스로 여러 서비스 노출
+> [동일한 IP에 여러 URI를 통해서 팬아웃](https://kubernetes.io/docs/concepts/services-networking/ingress/#simple-fanout)할 수 있습니다
+* [Simple fanout](https://kubernetes.io/docs/concepts/services-networking/ingress/#simple-fanout)
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: simple-fanout-example
+spec:
+  rules:
+  - host: foo.bar.com
+    http:
+      paths:
+      - path: /foo
+        pathType: Prefix
+        backend:
+          service:
+            name: service1
+            port:
+              number: 4200
+      - path: /bar
+        pathType: Prefix
+        backend:
+          service:
+            name: service2
+            port:
+              number: 8080
+```
+
+### 5.4.4 TLS (Transport Layer Security) 트래픽을 처리하도록 인그레스 구성
+> HTTPS 지원을 위한 TLS 설정을 포함한 인그레스 구성을 합니다
+
+* 순차적으로 key, cert 파일 생성 후, secret 을 생성합니다
+  - 마찬가지로 Ingress 주소를 hosts 파일에 등록 후 접속합니다
+```bash
+bash> openssl genrsa -out tls.key 2048
+Generating RSA private key, 2048 bit long modulus (2 primes)
+...
+
+bash> openssl req -new -x509 -key tls.key -out tls.cert -days 360 -subj /CN=kubia.suhyuk.me
+bash> kubectl create secret tls tls-secret --cert=tls.cert --key=tls.key
+secret/tls-secret created
+
+bash> curl -k -v https://kubia.suhyuk.me
+*   Trying 35.244.218.25:443...
+* TCP_NODELAY set
+* Connected to kubia.suhyuk.me (35.244.218.25) port 443 (#0)
+...
+You've hit kubia-7nvqb
+* Connection #0 to host kubia.suhyuk.me left intact
+
+bash> curl -k -v http://kubia.suhyuk.me
+*   Trying 35.244.218.25:80...
+* TCP_NODELAY set
+* Connected to kubia.suhyuk.me (35.244.218.25) port 80 (#0)
+...
+You've hit kubia-7nvqb
+* Connection #0 to host kubia.suhyuk.me left intact
+
+```
+
+
+## 5.5 파드가 연결을 수락할 준비가 됐을 때 신호 보내기
+> 기동된 파드가 네트워크 요청을 받을 준비가 되지 않았을 경우를 대비해 여유시간이 필요한 경우가 있습니다. 이런 상황을 대비해 Readiness Probe 를 통해 가능합니다
+> *주기적으로 파드에 호출하여 특정 파드가 클라이언트 요청을 수신할 수 있는지를 결정*합니다
+
+### 5.5.1 레디니스 프로브 소개
+* 레디니스 프로브는 3가지가 존재하며 아래의 기준으로 파드의 상태를 판단합니다
+  - Exec Probe -> 프로세스 실행의 종료 코드를 기준으로 판단
+  - HTTP GET Probe -> HTTP GET 요청의 상태 코드를 기준으로 판단
+  - TCP Socker -> 컨테이너의 지정된 포트로 TCP 연결을 수행하고 연결되면 성공으로 판단
+* 레디니스 프로브의 동작
+  - 라이브니스 프로브와 달리 **컨테이너가 준비 상태 점검에 실패하더라도 컨테이너가 종료되거나 다시 시작되지 않**습니다
+  - 해당 파드가 종료되는 것이 아니라 서비스에서 잠시 제외된다고 보면 되고, 파드 레비을이 서비스 레이블 셀렉터와 일치하지 않을 때와 같은 효과입니다
+![A pod whose readiness probe fails is removed as an endpoint of a service](images/kia.5.11.png)
+* 레디니스 프로브의 중요성
+  - 특정 파드에 문제가 있다고 하더라도 정상적인 상태의 파드들로만 서비스 가능하도록 할 수 있습니다
+
+
+### 5.5.2 파드에 레디니스 프로브 추가
+* 이미 서비스 중인 RC에 대해 아래와 같이 readinessProbe 항목을 변경합니다
+  - edit 명령을 통해 수정도 가능하지만 apply 가 좀 더 명시적인 것 같습니다
+```bash
+bash> cat kubia-rc-readinessprobe.yaml
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: kubia
+spec:
+  replicas: 3
+  selector:
+    app: kubia
+  template:
+    metadata:
+      labels:
+        app: kubia
+    spec:
+      containers:
+      - name: kubia
+        image: luksa/kubia
+        ports:
+        - name: http
+          containerPort: 8080
+        readinessProbe:
+          exec:
+            command:
+            - ls
+            - /var/ready
+
+bash> kubectl apply -f kubia-rc-readinessprobe.yaml
+replicationcontroller/kubia configured
+```
+* 파드의 레디니스 상태 확인 및 수정
+  - /var/ready 파일이 존재해야 정상으로 판단되지만, 이미 기동된 이미지는 영향을 받지 않습니다.
+  - 임의의 파드를 삭제하고 해당 파드의 상태를 확인합니다
+  - 10초 간격으로 프로브를 실행하므로 약간의 딜레이가 있지만, 금새 READY 상태로 변경됩니다
+```bash
+bash> kubectl get po
+NAME          READY   STATUS    RESTARTS   AGE
+kubia-4xjjt   1/1     Running   0          26h
+kubia-7nvqb   1/1     Running   0          26h
+kubia-p7njg   1/1     Running   0          26h
+
+bash> kubectl delete po kubia-4xjjt
+pod "kubia-4xjjt" deleted
+
+
+bash> kubectl get po kubia-c4tkw
+NAME          READY   STATUS    RESTARTS   AGE
+kubia-7nvqb   1/1     Running   0          26h
+kubia-c4tkw   0/1     Running   0          59s
+kubia-p7njg   1/1     Running   0          26h
+
+bash> kubectl describe po <new-pod>
+...
+  Warning  Unhealthy  1s    kubelet, gke-psyoblade-container-284316-pool-1-eca67292-dw2c  Readiness probe failed: ls: cannot access /var/ready: No such file or directory
+...
+
+bash> kubectl exec kubia-c4tkw -- touch /var/ready
+```
+* 가장 중요한 2가지를 기억해야 합니다 
+  - 라이브 서비스의 경우 반드시 레디니스 프로브를 정의 합니다 (언제 이용자 요청이 발생할 지 모릅니다)
+  - 레디니스 프로브에 파드의 종료 코드를 포함하지 않습니다 (파드 삭제 후 모든 서비스에서 파드가 삭제되므로 필요 없는 동작입니다)
+
+
+## 5.6 헤드리스 서비스로 개별 파드 찾기
+
+### 5.6.1 헤드리스 서비스 생성
+* 헤드리스 서비스를 생성하고, 확인합니다
+```bash
+bash> cat kubia-svc-headless.yaml
+...
+    spec:
+      containers:
+      - name: kubia
+        image: luksa/kubia
+        ports:
+        - name: http
+          containerPort: 8080
+        readinessProbe:
+          exec:
+            command:
+            - ls
+            - /var/ready
+
+bash> kubectl create -f kubia-svc-headless.yaml
+service/kubia-headless created
+
+```
+
+### 5.6.2 DNS로 파드 찾기
+* YAML 매니피스트를 사용하지 않고 파드생성
+  - 헤드리스 서비스의 경우 ClusterIP 가 없기 때문에 파드 서비스의 엔드포인트가 조회됩니다
+  - [kubectl generators are deprecated](https://kubernetes.io/docs/reference/kubectl/conventions/)
+  - 이렇게 헤드리스 서비스를 통해 *각 파드에 직접 IP로 액세스 할 수 있지만, 여전히 DNS 를 통해 조회되고, 로드밸런싱도 DNS 를 통한 라운드로빈 매커니즘*을 이용합니다
+```bash
+bash> kubectl run dnsutils --image=tutum/dnsutils --generator=run-pod/v1 --command -- sleep infinity
+Flag --generator has been deprecated, has no effect and will be removed in the future.
+pod/dnsutils created
+
+bash> kubectl exec dnsutils -- nslookup kubia-headless
+Server:		10.3.240.10
+Address:	10.3.240.10#53
+
+Name:	kubia-headless.default.svc.cluster.local
+Address: 10.0.0.15
+Name:	kubia-headless.default.svc.cluster.local
+Address: 10.0.4.2
+Name:	kubia-headless.default.svc.cluster.local
+Address: 10.0.5.2
+```
+
+### 5.6.3 모든 파드 검색 - 준비되지 않은 파드도 포함
+> 파드의 레디니스와 관계없이 모든 파드를 서비스에 추가하려면 [publishNotReadyAddresses=True](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/) 설정을 이용하면 됩니다
+
+```bash
+bash> cat kubia-svc-publish-not-ready.yaml
+
+
+bash> kubectl create -f kubia-svc-publish-not-ready.yaml
+service/kubia-all created
+
+bash> kubectl get svc
+NAME                 TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE
+kubernetes           ClusterIP      10.3.240.1     <none>        443/TCP        2d22h
+kubia-all            ClusterIP      10.3.244.29    <none>        80/TCP         11s
+kubia-headless       ClusterIP      None           <none>        80/TCP         24m
+kubia-loadbalancer   LoadBalancer   10.3.255.147   34.64.113.8   80:32584/TCP   27h
+kubia-nodeport       NodePort       10.3.246.224   <none>        80:30123/TCP   21h
+
+bash> kubectl describe svc kubia-all  # 준비되지 않은 서비스도 포함되어 있으며
+Name:              kubia-all
+Namespace:         default
+Labels:            <none>
+Annotations:       <none>
+Selector:          app=kubia
+Type:              ClusterIP
+IP:                10.3.244.29
+Port:              <unset>  80/TCP
+TargetPort:        8080/TCP
+Endpoints:         10.0.0.15:8080,10.0.5.2:8080,10.0.5.3:8080
+Session Affinity:  None
+Events:            <none>
+
+bash> kubectl describe svc kubia-headless  # 여기서는 준비된 파드만 포함되었습니다
+Name:              kubia-headless
+Namespace:         default
+Labels:            <none>
+Annotations:       <none>
+Selector:          app=kubia
+Type:              ClusterIP
+IP:                None
+Port:              <unset>  80/TCP
+TargetPort:        8080/TCP
+Endpoints:         10.0.0.15:8080,10.0.5.2:8080
+Session Affinity:  None
+Events:            <none>
+```
+
+
 
 ## 9. 질문과 답변
 

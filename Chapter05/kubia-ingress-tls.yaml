@@ -1,14 +1,14 @@
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: kubia
+  name: kubia-tls
 spec:
   tls:
   - hosts: 
-    - kubia.example.com
+    - kubia.suhyuk.me
     secretName: tls-secret
   rules:
-  - host: kubia.example.com
+  - host: kubia.suhyuk.me
     http:
       paths:
       - path: /
