@@ -173,13 +173,13 @@ kubectl get svc kubia-clientip -o json | grep sessionAffinity
 * 좀 더 단순한 예제를 위해 정적인 파드 설정파일을 생성합니다
   - 현재 luksa/kubia 이미지는 8080 포트를 사용하도록 작성된 이미지이므로 80, 8080 포트를 바라보도록 2개의 파드를 생성합니다
 ```bash
-bash> cat kubia-po-named.yml
+bash> cat kubia-po-multi-ports-named.yml
 apiVersion: v1
 kind: Pod
 metadata:
-  name: kubia-named
+  name: kubia-multi-ports-named
   labels:
-    app: kubia-named
+    app: kubia-multi-ports-named
 spec:
   containers:
   - name: broker
@@ -197,11 +197,11 @@ spec:
   - 해당 http, https 를 바라보는 포트를 81, 82 번으로 구성합니다
   - 이렇게 구성하는 경우 향후 서비스 수준에서 포트 변경에 자유롭게 됩니다
 ```bash
-bash> cat kubia-svc-named.yml
+bash> cat kubia-svc-multi-ports-named.yml
 apiVersion: v1
 kind: Service
 metadata:
-  name: kubia-named
+  name: kubia-multi-ports-named
 spec:
   ports:
   - name: http
@@ -211,40 +211,35 @@ spec:
     port: 82
     targetPort: https
   selector:
-    app: kubia-named
+    app: kubia-multi-ports-named
 ```
-* 하나의 파드에 여러개의 어플리케이션을 실행하는 rc 를 구성합니다
-  - 별도의 파드를 통한 실행은 계속 실패(kubia-po-named.yml)하여 리플리케이션 컨트롤러(kubia-rc-named.yml)를 통해 수행합니다
-  - 해당 파드를 서비스하는 멀티포트 서비스를 실행합니다
-  - 단, replicas=3 의 경우는 잘 동작하지만 replicas=1 이나 pods 만 구성 시에는 제대로 동작하지 않습니다
+* 파드에 직접 혹은 서비스를 통한 방법으로 접근합니다
 ```bash
-bash> kubectl create -f kubia-rc-named.yml
-kubectl get pods
-NAME                    READY   STATUS    RESTARTS   AGE
-pod/kubia-4pkgl         1/1     Running   1          9d
-pod/kubia-h76qz         1/1     Running   1          9d
-pod/kubia-named-qd5x7   2/2     Running   0          31s
-pod/kubia-named-v8wfw   2/2     Running   0          31s
-pod/kubia-named-xsnwb   2/2     Running   0          31s
-pod/kubia-x586c         1/1     Running   1          9d
 
-bash> kubectl create -f kubia-svc-named-ports.yaml
-service/kubia-named created
+bash> kubectl exec pod/kubia-multi-ports-named -c broker -- curl -s localhost:80
+<!DOCTYPE html> 
+<html> 
+<head> 
+	<title>Welcome to nginx!</title> 
+	<style> body { width: 35em; margin: 0 auto; font-family: Tahoma, Verdana, Arial, sans-serif; } </style> 
+</head>
+<body> <h1>Welcome to nginx!</h1>
+	<p>If you see this page, the nginx web server is successfully installed and working. Further configuration is required.</p> 
+	<p>For online documentation and support please refer to
+	<a href="http://nginx.org/">nginx.org</a>.<br/> Commercial support is available at <a href="http://nginx.com/">nginx.com</a>.</p>
+	<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
 
-bash> kubectl get services kubia-named
-NAME                     TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)         AGE
-service/kubia-named      ClusterIP   10.111.243.221   <none>        81/TCP,82/TCP   37m
+bash> kubectl exec pod/kubia-multi-ports-named -c broker -- curl -s localhost:8080
+You've hit kubia-multi-ports-named
 
-bash> kubectl exec kubia-named-kvcwv -c broker -- curl -s 10.111.243.221:81
+bash> kubectl exec pod/kubia-multi-ports-named -c broker -- curl -s 10.3.242.37:81
 <!DOCTYPE html>
-<html>
-<head>
-<title>Welcome to nginx!</title>
-...
+<html>...  </html>
 
-bash> kubectl exec kubia-named-kvcwv -c broker -- curl -s 10.111.243.221:82
-You've hit kubia-named-v8wfw
-
+bash> kubectl exec pod/kubia-multi-ports-named -c broker -- curl -s 10.3.242.37:82
+You've hit kubia-multi-ports-named
 ```
 
 ### 5.1.2 서비스 검색

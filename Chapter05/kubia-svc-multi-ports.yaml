@@ -1,14 +1,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: kubia-named
+  name: kubia-multi-ports
 spec:
   ports:
   - name: http
     port: 81
-    targetPort: htp
+    targetPort: 80
   - name: https
     port: 82
-    targetPort: https
+    targetPort: 8080
   selector:
-    app: kubia-named
+    app: kubia-multi-ports

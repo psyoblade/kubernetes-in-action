@@ -1,20 +1,16 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: kubia-named
+  name: kubia-multi-ports
   labels:
-    app: kubia-named
+    app: kubia-multi-ports
 spec:
   containers:
   - name: broker
     image: nginx
     ports:
-    - name: http
-      port: 80
-      targetPort: 80
+    - containerPort: 80
   - name: webapp
     image: luksa/kubia
     ports:
-    - name: https
-      port: 8080
-      targetPort: https
+    - containerPort: 8080
