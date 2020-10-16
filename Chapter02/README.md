@@ -8,6 +8,7 @@
 bash> docker run --rm busybox echo "Hello world"
 Hello world
 ```
+![Running echo “Hello world” in a container based on the busybox container image](images/kia.2.1.png)
 
 ### 2.1.2 간단한 node.js 애플리케이션 생성하기
 * 노드 app.js 서버 및 Dockerfile 파일을 생성합니다
@@ -61,6 +62,8 @@ bash> curl -s http://localhost:8080
 
 bash> docker rm -f kubia-container
 ```
+![Building a new container image from a Dockerfile](images/kia.2.2.png)
+![Container images are composed of layers that can be shared among different images](images/kia.2.3.png)
 
 
 ## 2.2 쿠버네티스 클러스터 설치
@@ -138,6 +141,8 @@ pod/kubia created
 
 bash> kubectl create -f kubia.yaml
 ```
+![Running the luksa/kubia container image in Kubernetes](images/kia.2.6.png)
+
 
 ### 2.3.2 외부 접근을 위한 로드밸런서 띄우기
 * 개별 파드는 IP를 가지지만 컨테이너 내부에서만 사용되며, 외부 접속을 위해서는 반드시 LoadBalancer 유형의 서비스가 필요합니다
