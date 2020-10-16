@@ -3,9 +3,13 @@
 ## 참고자료
 * [Docker 의 작동원리](https://tech.ssut.me/what-even-is-a-container/)
 * [Cgroups](https://wiki.archlinux.org/index.php/cgroups)
+* [docker에서 pause컨테이너 사용하기](https://medium.com/@crowdy/docker%EC%97%90%EC%84%9C-pause%EC%BB%A8%ED%85%8C%EC%9D%B4%EB%84%88-%EC%82%AC%EC%9A%A9%ED%95%98%EA%B8%B0-9807792021b6)
+* [Install Docker on Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
 
 
 ## 1. GKE 환경 구성
+
+### 1.1 계정 생성 및 SDK 설치
 * [Google Cloud 무료 크레딧](https://cloud.google.com/free/docs/gcp-free-tier?hl=ko) 활용하기 위해 [Google Account](https://accounts.google.com) 신규 계정을 생성 합니다
 * [Google Cloud Console](https://console.cloud.google.com/)에 로그인하여 신규 프로젝트를 생성합니다
   - ![new proejct](images/gcloud.1.png)
@@ -139,3 +143,5 @@ bash> ps -afx | vi -
 10664 ?        Ssl    0:05 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
 ```
 * 위의 프로세스에서와 같이 dockerd 와 containerd 는 별도의 프로세스로 동작하며, containerd -> containerd-shim -> runc 를 통해 nginx 가 기동됨을 확인할 수 있습니다
+
+
