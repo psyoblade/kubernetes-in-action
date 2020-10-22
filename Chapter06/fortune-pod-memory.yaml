@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: fortune
+  name: fortune-memory
 spec:
   containers:
   - image: psyoblade/fortune
@@ -20,5 +20,6 @@ spec:
       protocol: TCP
   volumes:
   - name: html
-    emptyDir: {}
+    emptyDir:
+      medium: Memory
 

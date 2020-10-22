@@ -36,6 +36,51 @@
 ### 6.1.1 예제 볼륨 설명
 > 
 
+* 실습을 위한 노드가 3개 존재하는 쿠버네티스 클러스터를 생성합니다
+  - [Port Forward](https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/)
+```bash
+bash> gcloud container clusters create kubia --num-nodes 3 --machine-type g1-small
+Creating cluster kubia in asia-northeast3-a... Cluster is being health-checked (master is healthy)...done.
+Created [https://container.googleapis.com/v1/projects/psyoblade-container-284316/zones/asia-northeast3-a/clusters/kubia].
+To inspect the contents of your cluster, go to: https://console.cloud.google.com/kubernetes/workload_/gcloud/asia-northeast3-a/kubia?project=psyoblade-container-284316
+kubeconfig entry generated for kubia.
+NAME   LOCATION           MASTER_VERSION   MASTER_IP      MACHINE_TYPE  NODE_VERSION     NUM_NODES  STATUS
+kubia  asia-northeast3-a  1.16.13-gke.401  34.64.221.163  g1-small      1.16.13-gke.401  3          RUNNING
 
+bash> k create -f fortune-pod.yaml
+pod/fortune created
 
+bash> k exec fortune -c web-server -- curl -s http://localhost  # 직접 액세스 하는 방법과
+As to the Adjective: when in doubt, strike it out.
+		-- Mark Twain, "Pudd'nhead Wilson's Calendar"
+
+bash> k port-forward fortune 8080:80  # 포트포워드를 수행하고 로컬호스트로 직접 확인할 수도 있습니다
+Forwarding from 127.0.0.1:8080 -> 80
+Forwarding from [::1]:8080 -> 80
+Handling connection for 8080
+Handling connection for 8080
+
+```
+
+* 깃 싱크 실습
+  - [sidecar w/ git-sync](https://medium.com/@thanhtungvo/build-git-sync-for-side-car-container-in-kubernetes-4ee51bda84f0) 참고
+  - 아래의 컨테이너가 기동되고 나서, 깃헙의 [index.html](https://github.com/psyoblade/kubia-website-example/blob/master/index.html) 파일을 수정합니다
+```bash
+bash> cd git-sync ; docker build -t psyoblade/git-sync .
+bash> docker push psyoblade/git-sync ; cd ..
+bash> k create -f gitrepo-volume-pod-sidecar.yaml
+bash> k exec gitrepo-volume-pod-sidecar -c web-server -- curl -s localhost
+<html>
+<body>
+Hello psyoblade w/ git-sync.
+</body>
+</html>
+
+bash> sleep 30 ; k exec gitrepo-volume-pod-sidecar -c web-server -- curl -s localhost
+<html>
+<body>
+Hello psyoblade !!!!
+</body>
+</html>
+```
 
