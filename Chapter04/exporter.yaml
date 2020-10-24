@@ -12,5 +12,3 @@ spec:
       containers:
       - name: main
         image: luksa/batch-job
-
-

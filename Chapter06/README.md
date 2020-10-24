@@ -84,3 +84,7 @@ Hello psyoblade !!!!
 </html>
 ```
 
+* 클러스터 삭제
+```bash
+bash> gcloud container clusters delete kubia
+```
