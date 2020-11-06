@@ -34,7 +34,26 @@
 
 ## 6.1 볼륨 소개
 ### 6.1.1 예제 볼륨 설명
-> 
+![figure 6.3](images/kia.6.2.png)
+
+### 6.1.2 사용 가능한 볼륨 유형 소개
+* emptyDir : 도커의 named volume 과 유사하게 일시적인 데이터를 저장하는 데에 사용
+* hostPath : 도커의 bind volume 과 유사하게 워커 노드의 파일시스템을 마운트하여 사용
+* gitRepo : 깃 리포지터리의 콘텐츠를 체크아웃으로 초기화한 볼륨
+* nfs: NFS 공유를 마운트합니다
+* gcePersistentDisk, awsElasticBlockStore, azureDisk : 클라우드 제공자의 블록스토리지
+* cinder, cephfs, ... scaieIO
+* configMap, secret, downwardAPI : 쿠버네티스 리소스나, 클러스터 정보를 파드에 노출할 때에 사용하는 특별한 볼륨
+* persistentVolumeClaim: 사전 혹은 동적으로 프로비저닝된 퍼시스턴트 스토리지를 사용하는 방법
+
+
+## 6.2 볼륨을 사용한 컨테이너 간 데이터 공유
+### 6.2.1 emptyDir
+> 파드가 삭제되면 볼륨 또한 삭제되며 파드 내의 컨테이너 간의 임시 파일을 공유할 때에 사용
+
+### 6.2.2 깃 리포지터리 볼륨
+> 기본적으로 emptyDir 볼륨에 깃 특정 브랜치를 체크아웃합니다
+![figure 6.3](images/kia.6.3.png)
 
 * 실습을 위한 노드가 3개 존재하는 쿠버네티스 클러스터를 생성합니다
   - [Port Forward](https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/)
@@ -83,6 +102,58 @@ Hello psyoblade !!!!
 </body>
 </html>
 ```
+
+## 6.3 워커 노드 파일시스템의 파일 접근
+> 대부분의 파드는 호스트 노드를 인식하지 못하므로 노드의 파일시스템에 있는 어떤 파일에도 접근해서는 안 된다.
+* 시스템이 어떤 볼륨을 사용하고 있는지 확인합니다.
+  - 볼륨 자체 데이터를 저장하기 위해서가 아니라, 노드 데이터를 읽거나 접근하기 위해서 사용합니다 
+  - **절대, 여러 파드에 걸쳐 데이터를 유지하기 위해서 사용해서는 안 됩니다**
+```bash
+bash> kubectl get pods --namespace kube-system
+bash> kubectl describe pods etcd-core-desktop --namespace kube-system
+...
+Volumes:
+  etcd-certs:
+    Type:          HostPath (bare host directory volume)
+    Path:          /run/config/pki/etcd
+    HostPathType:  DirectoryOrCreate
+  etcd-data:
+    Type:          HostPath (bare host directory volume)
+    Path:          /var/lib/etcd
+    HostPathType:  DirectoryOrCreate
+...
+```
+
+## 6.4 퍼시스턴트 스토리지 사용
+
+* GCE 퍼시스턴트 볼륨생성
+  - 반드시 같은 지역에 저장소를 생성해야 하며, 현재는 10GiB 이상 지정해야 생성이 가능합니다
+  - Compute Engine 의 Disks 섹션에서 확인이 가능하며, 볼륨 컨테이너를 추가하는 것과 유사하게 사용할 수 있습니다
+```bash
+bash> gcloud container clusters list
+NAME   LOCATION           MASTER_VERSION   MASTER_IP      MACHINE_TYPE  NODE_VERSION     NUM_NODES  STATUS
+kubia  asia-northeast3-a  1.16.13-gke.401  34.64.101.220  g1-small      1.16.13-gke.401  3          RUNNING
+
+bash> gcloud compute disks create --size=10GiB --zone=asia-northeast3-a mongodb
+Created [https://www.googleapis.com/compute/v1/projects/psyoblade-container-284316/zones/asia-northeast3-a/disks/mongodb].
+NAME     ZONE               SIZE_GB  TYPE         STATUS
+mongodb  asia-northeast3-a  10       pd-standard  READY
+
+bash> kubectl create -f mongodb-pod-gcepd.yaml
+```
+
+### 6.4.2 기반 퍼시스턴트 스토리지로 다른 유형의 볼륨 사용하기
+> awsElasticBlockStore 등
+
+
+## 6.5 기반 스토리지 기술과 파드 분리
+
+### 6.5.1 퍼시스턴트볼륨(PV)과 퍼시스턴트볼륨클레임(PVC) 소개
+> 관리자가 스토리지 유형을 선택하여 PersistentVolume 을 생성하면, 사용자는 PersistentVolumeClaim 을 통해서 PV를 할당받을 수 있습니다
+![그림 6.6](images/kia.6.6.png)
+  - PV 과 클러스터 노드는 특정 네임스페이스에 속하지 않습니다
+
+![그림 6.10](images/kia.6.10.png)
 
 * 클러스터 삭제
 ```bash
