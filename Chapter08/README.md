@@ -346,7 +346,7 @@ bash> kubectl create clusterrolebinding permissive-binding --clusterrole=cluster
 
 * 파드가 쿠버네티스와 통신하는 방법 정리
   - 파드가 생성될 시점에 *시크릿 볼륨*을 통해 공유된 namespace, token, ca.crt 파일을 이용하여 쿠버네티스 API 서버에 접근이 가능합니다
-  - ca.cart : API 서버의 인증서가 인증 기관으로부터 서명 되었는지 검증을 위한 파일입니다
+  - ca.crt : API 서버의 인증서가 인증 기관으로부터 서명 되었는지 검증을 위한 파일입니다
   - token : Authorization HTTP 헤더에 Bearer 토큰을 통해 자신을 인증하기 위한 파일입니다
   - namespace : 현재 파드의 네임스페이스를 알기 위한 파일입니다
 ![Downward API](images/kia.8.5.png)
