@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontend
+  name: backend
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: frontend
+      app: backend
   template:
     metadata:
       labels:
-        app: frontend
+        app: backend
     spec:
       affinity:
         nodeAffinity:
@@ -21,15 +21,9 @@ spec:
                   operator: In
                   values: 
                   - zone2
-        podAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-          - topologyKey: kubernetes.io/hostname
-            labelSelector:
-              matchLabels:
-                app: backend
       containers:
-      - name: main
-        image: busybox
-        args:
+      - args:
         - sleep
         - "99999"
+        image: busybox
+        name: main

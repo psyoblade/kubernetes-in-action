@@ -1,13 +1,16 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontend
+  name: frontend-anti
 spec:
   replicas: 5
+  selector:
+    matchLabels:
+      app: frontend-anti
   template:
     metadata:
       labels:
-        app: frontend
+        app: frontend-anti
     spec:
       affinity:
         podAntiAffinity:

@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: preferred-deployment
+  name: preferred-deployment-v2
 spec:
-  replicas: 5
+  replicas: 10
   selector:
     matchLabels:
       app: pref

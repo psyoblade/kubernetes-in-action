@@ -1,9 +1,14 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: prod
+  name: busybox-w-toleration
+  labels:
+    app: prod
 spec:
   replicas: 5
+  selector:
+    matchLabels:
+      app: prod
   template:
     metadata:
       labels:
