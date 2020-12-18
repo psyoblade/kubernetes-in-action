@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: required-deployment
 spec:
-  replicas: 5
+  replicas: 10
   selector:
     matchLabels:
       app: required
@@ -17,10 +17,14 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                - key: availability-zone
+                - key: zone-name
                   operator: In
                   values: 
-                  - zone1
+                  - zone2
+                - key: share-type
+                  operator: In
+                  values:
+                  - shared
       containers:
       - args:
         - sleep

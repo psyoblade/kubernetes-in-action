@@ -3,16 +3,16 @@ kind: Deployment
 metadata:
   name: busybox-w-toleration
   labels:
-    app: prod
+    app: test
 spec:
   replicas: 5
   selector:
     matchLabels:
-      app: prod
+      app: test
   template:
     metadata:
       labels:
-        app: prod
+        app: test
     spec:
       containers:
       - args:
@@ -23,5 +23,5 @@ spec:
       tolerations:
       - key: node-type
         operator: Equal
-        value: production
+        value: test
         effect: NoSchedule

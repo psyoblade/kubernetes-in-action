@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: preferred-deployment-v2
 spec:
-  replicas: 10
+  replicas: 3
   selector:
     matchLabels:
       app: pref
@@ -18,17 +18,17 @@ spec:
           - weight: 80
             preference:
               matchExpressions:
-              - key: availability-zone
+              - key: zone-name
                 operator: In
                 values:
-                - zone1
+                - zone2
           - weight: 20
             preference:
               matchExpressions:
               - key: share-type
                 operator: In
                 values:
-                - dedicated
+                - shared
       containers:
       - args:
         - sleep
