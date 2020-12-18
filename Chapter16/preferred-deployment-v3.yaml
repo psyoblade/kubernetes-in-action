@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: preferred-deployment-v2
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: pref
+  template:
+    metadata:
+      labels:
+        app: pref
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 80
+            preference:
+              matchExpressions:
+              - key: zone-name
+                operator: In
+                values:
+                - zone2
+          - weight: 20
+            preference:
+              matchExpressions:
+              - key: share-type
+                operator: In
+                values:
+                - shared
+      containers:
+      - args:
+        - sleep
+        - "99999"
+        image: busybox
+        name: main
