@@ -516,9 +516,9 @@ frontend-7457694d79-qjgmd   1/1     Running   0          5s    10.84.2.15   gke-
 podAffinity:
   requiredDuringSchedulingIgnoredDuringExecution:
   - topologyKey: rack
-	labelSelector:
-	  matchLabels:
-		app: backend
+    labelSelector:
+      matchLabels:
+        app: backend
 ...
 ```
 * 토폴로지 호스트 이름 설정을 통한 파드 어피니티의 예제
@@ -528,9 +528,9 @@ podAffinity:
 podAffinity:
   requiredDuringSchedulingIgnoredDuringExecution:
   - topologyKey: kubernetes.io/hostname
-	labelSelector:
-	  matchLabels:
-		app: backend
+    labelSelector:
+      matchLabels:
+        app: backend
 ...
 ```
   - podAffinity : required : topologyKey
@@ -539,9 +539,9 @@ podAffinity:
 podAffinity:
   requiredDuringSchedulingIgnoredDuringExecution:
   - topologyKey: kubernetes.io/hostname
-	labelSelector:
-	  matchLabels:
-		app: backend
+    labelSelector:
+      matchLabels:
+        app: backend
 ...
 ```
 
@@ -556,11 +556,11 @@ podAffinity:
 podAffinity:
   preferredDuringSchedulingIgnoredDuringExecution:
   - weight: 80
-	podAffinityTerm:
-	  topologyKey: kubernetes.io/hostname
-	  labelSelector:
-		matchLabels:
-		  app: backend
+    podAffinityTerm:
+      topologyKey: kubernetes.io/hostname
+      labelSelector:
+        matchLabels:
+          app: backend
 ...
 ```
 
