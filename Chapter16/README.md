@@ -566,6 +566,7 @@ podAffinity:
 
 ### 16.3.4 파드 안티-어피니티를 사용하여 파드들이 서로 떨어지게 스케줄링하기
 > 두 파드가 동일한 노드에 실행되는 경우 서로 성능에 영향을 주는 경우 (IO를 많이 사용하는 파드와 CPU 사용많은 파드를 섞는게 좋다. 그 반대의 경우는 Anti-Pattern)에 사용합니다
+![kia.16.7](images/kia.16.7.png)
 
 * 안티-어피니티를 이용하여 프론트엔드와 떨어진 노드에 배포하기, 펜딩은 되어도 같이는 못 살겠다 !!
 ```bash
@@ -582,9 +583,18 @@ frontend-anti-79f9d8d6f5-vsvhq   1/1     Running   0          27s   10.84.1.19  
 ```
 
 
-## 4. 실습해보고 싶은 내용
+## 4. 질문
 * 노드 3개에 골고루 busybox 를 배포하고, 특정 노드에만 NoExecute Taint 를 추가하면 어떻게 되는가?
+  - 즉시 해당 노드에서 파드가 삭제되고 다른 노드에 기동됩니다
 * 추가된 Taints 및 Label 삭제는 어떻게 하는가?
+  - 테인트/라벨 이름에 마이너스(-)를 붙이면 됩니다
+* 모든 노드에서 특정 라벨을 삭제하고 싶으면 어떻게 하는가?
+```bash
+bash> kubectl label node --all zone-name-
+node/gke-kubia-default-pool-d5bbe7a9-j2lc labeled
+node/gke-kubia-default-pool-d5bbe7a9-s8x9 labeled
+node/gke-kubia-default-pool-d5bbe7a9-tzfh labeled
+```
 * 같은 zone, region, hostname 에 배포하기 위해서는 어떻게 설정할 수 있는가?
 
 
