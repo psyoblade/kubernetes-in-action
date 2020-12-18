@@ -234,7 +234,7 @@ bash> gcloud container clusters create kubia --num-nodes 3 --machine-type e2-sma
 ```
 
 * 선호하는 zone 과 machine 을 지정하지만, 여유 노드가 있다면 스케줄링 되지만, 그렇지 않다고 하더라도 문제는 아닌 경우
-  - availability-zone 에 가중치 80, shre-type 에 가중치 20 으로 모두 노드1에 배포되기를 기대했으나, 4개는 1개의 노드에 나머지는 2번째 노드에 배포 되었습니다
+  - zone-name 에 가중치 80, shre-type 에 가중치 20 으로 모두 노드1에 배포되기를 기대했으나, 4개는 1개의 노드에 나머지는 2번째 노드에 배포 되었습니다
   - 스케줄러가 노드의 위치를 지정할 때에 Selector-SpreadPriority 기능을 통해 특정 노드에만 배포되면 장애 시에 위험할 수 있으므로 여러 노드에 분산하는 우선순위가 적용되기 때문입니다
 ```bash
 bash> kubectl label node gke-kubia-default-pool-694e5d84-5h7t zone-name=zone1
@@ -330,7 +330,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                - key: availability-zone
+                - key: zone-name
                   operator: In
                   values: 
                   - zone1
@@ -367,17 +367,201 @@ gke-kubia-default-pool-d5bbe7a9-tzfh   Ready    <none>   54m   v1.16.15-gke.4901
 
 
 ## 3 파드 어피니티와 안티어피티니를 이용한 파드배치
+> 파드와 노드간의 어피니티외에도 파드간의 어피니티를 지정할 필요가 있는데, 랙을 지정하거나 백엔드 파드와 프론트엔드 파드를 가깝게 혹은 멀리 배포할 수 있습니다
+예제는 디플로이먼트에서 **app=backend 레이블이 있는 파드와 동일한 노드(topologyKey: kubernetes.io/hostname)에 배포되도록 설정**합니다
+![kia.16.4](images/kia.16.4.png)
 
-### 16.3.3
+### 16.3.1 파드 간 어피니티를 이용해 같은 노드에 파드 배포하기
+* 백엔드 노드를 생성하기 위한 디플로이먼트 생성
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                - key: zone-name
+                  operator: In
+                  values: 
+                  - zone2
+      containers:
+      - args:
+        - sleep
+        - "99999"
+        image: busybox
+        name: main
+```
+* 프론트엔드 파드 어피니티 디플로이먼트
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                - key: zone-name
+                  operator: In
+                  values: 
+                  - zone2
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app: backend
+      containers:
+      - name: main
+        image: busybox
+        args:
+        - sleep
+        - "99999"
+```
+* 같은 노드에 배포되는지 확인합니다
+  - 이번에는 기존 라벨 제약을 없애고, 어피니티 테스트를 위해 기존 node-name 을 node2 로변경합니다
 ```bash
-bash> k create -f backend-busybox.yaml
-bash> k create -f frontend-podaffinity-host.yaml
-bash> k get po -o wide
+bash> 
+kubectl label node gke-kubia-default-pool-d5bbe7a9-j2lc zone-name-
+kubectl label node gke-kubia-default-pool-d5bbe7a9-j2lc zone-name=zone2
+kubectl label node gke-kubia-default-pool-d5bbe7a9-s8x9 zone-name-
+kubectl label node gke-kubia-default-pool-d5bbe7a9-s8x9 zone-name=zone2
+
+bash> kubectl create -f frontend-podaffinity-host.yaml  # 백엔드 파드가 없는 경우는 Pending 상태가 됩니다
+deployment.apps/frontend created
+
+bash> kubectl get pods -o wide
+NAME                        READY   STATUS    RESTARTS   AGE   IP       NODE     NOMINATED NODE   READINESS GATES
+frontend-7457694d79-cctbn   0/1     Pending   0          9s    <none>   <none>   <none>           <none>
+frontend-7457694d79-gtphr   0/1     Pending   0          9s    <none>   <none>   <none>           <none>
+frontend-7457694d79-jhktz   0/1     Pending   0          9s    <none>   <none>   <none>           <none>
+frontend-7457694d79-xvst7   0/1     Pending   0          9s    <none>   <none>   <none>           <none>
+frontend-7457694d79-zv8nk   0/1     Pending   0          9s    <none>   <none>   <none>           <none>
+
+bash> kubectl create -f backend-busybox.yaml
+deployment.apps/backend created
+
+bash> kubectl get pods -o wide  # 각각 5개의 백엔드와 프론트엔드를 배포하였을 때에 특정 노드에는 백엔드만 배포되는 기이한 현상이 발생합니다 !!!
+NAME                        READY   STATUS              RESTARTS   AGE   IP          NODE                                   NOMINATED NODE   READINESS GATES
+backend-bb6d5b5d8-bx5sq     0/1     ContainerCreating   0          3s    <none>      gke-kubia-default-pool-d5bbe7a9-tzfh   <none>           <none>
+backend-bb6d5b5d8-kpjss     0/1     ContainerCreating   0          3s    <none>      gke-kubia-default-pool-d5bbe7a9-j2lc   <none>           <none>
+backend-bb6d5b5d8-p72n7     0/1     ContainerCreating   0          3s    <none>      gke-kubia-default-pool-d5bbe7a9-s8x9   <none>           <none>
+backend-bb6d5b5d8-wb28p     1/1     Running             0          3s    10.84.2.9   gke-kubia-default-pool-d5bbe7a9-j2lc   <none>           <none>
+backend-bb6d5b5d8-xgr6k     0/1     ContainerCreating   0          3s    <none>      gke-kubia-default-pool-d5bbe7a9-s8x9   <none>           <none>
+frontend-7457694d79-cctbn   0/1     ContainerCreating   0          19s   <none>      gke-kubia-default-pool-d5bbe7a9-s8x9   <none>           <none>
+frontend-7457694d79-gtphr   0/1     ContainerCreating   0          19s   <none>      gke-kubia-default-pool-d5bbe7a9-s8x9   <none>           <none>
+frontend-7457694d79-jhktz   0/1     ContainerCreating   0          19s   <none>      gke-kubia-default-pool-d5bbe7a9-s8x9   <none>           <none>
+frontend-7457694d79-xvst7   0/1     ContainerCreating   0          19s   <none>      gke-kubia-default-pool-d5bbe7a9-s8x9   <none>           <none>
+frontend-7457694d79-zv8nk   0/1     ContainerCreating   0          19s   <none>      gke-kubia-default-pool-d5bbe7a9-s8x9   <none>           <none>
+```
+> 나중에 알게 되었지만, **백엔드를 먼저 배포하고 프론트엔드를 배포해야 정상적인 어피니티를 기대할 수 있습**니다
+
+* 이번에는 정확하게 3개의 레플리카로 구성하여 배포합니다
+  - 
+```bash
+bash> 
+kubectl create -f backend-busybox-v2.yaml
+kubectl create -f frontend-podaffinity-host-v2.yaml
+
+bash> 
+kubectl get pods -o wide
 NAME                        READY   STATUS    RESTARTS   AGE   IP           NODE                                   NOMINATED NODE   READINESS GATES
-backend-7c78f5b858-js2d6    1/1     Running   0          72s   10.84.2.10   gke-kubia-default-pool-001c8246-6hjr   <none>           <none>
-backend-7c78f5b858-mj98d    1/1     Running   0          72s   10.84.0.14   gke-kubia-default-pool-001c8246-zljb   <none>           <none>
-frontend-6b7cf99bb5-4sk25   1/1     Running   0          14s   10.84.2.11   gke-kubia-default-pool-001c8246-6hjr   <none>           <none>
-frontend-6b7cf99bb5-h7fpd   1/1     Running   0          14s   10.84.0.15   gke-kubia-default-pool-001c8246-zljb   <none>           <none>
+backend-bb6d5b5d8-8nwv9     1/1     Running   0          20s   10.84.0.25   gke-kubia-default-pool-d5bbe7a9-s8x9   <none>           <none>
+backend-bb6d5b5d8-gjw7w     1/1     Running   0          20s   10.84.2.14   gke-kubia-default-pool-d5bbe7a9-j2lc   <none>           <none>
+backend-bb6d5b5d8-p8zpx     1/1     Running   0          20s   10.84.1.24   gke-kubia-default-pool-d5bbe7a9-tzfh   <none>           <none>
+frontend-7457694d79-krvzg   1/1     Running   0          5s    10.84.0.26   gke-kubia-default-pool-d5bbe7a9-s8x9   <none>           <none>
+frontend-7457694d79-pzb8h   1/1     Running   0          5s    10.84.1.25   gke-kubia-default-pool-d5bbe7a9-tzfh   <none>           <none>
+frontend-7457694d79-qjgmd   1/1     Running   0          5s    10.84.2.15   gke-kubia-default-pool-d5bbe7a9-j2lc   <none>           <none>
+```
+
+### 16.3.2 동일한 랙, 가용 영역 또는 리전에 파드 배포
+> 노드 생성시에 결정되는 "가용 영역(zone)" 및 "리전(region)" 정보를 이용해서 배포할 수 있는데 이때에 사용되는 것이 **topologyKey** 속성이며 각각 아래와 같습니다
+
+* 각 노드가 서로 다른 가용 영역에 있는 경우, 동일한 가용 영역에 파드 함께 배포하려면
+  - topologyKey: failure-domain.beta.kubernetes.io/zone
+* 같은 리전에 파드를 함께 배포하려면 
+  - topologyKey: failure-domain.beta.kubernetes.io/region
+* 같은 랙에 파드를 함께 배포하기
+  - 여기서는 호스트 대신, "TopologyKey: rack"으로 지정했기 때문에, 프론트엔드 배포 시에 "app:backend" AND "rack: rack2" 조건에 매칭되는 노드가 후보입니다
+![kia.16.5](images/kia.16.5.png)
+
+* 토폴로지 랙 설정을 통한 파드 어피니티의 예제
+  - 아래와 같이 topologyKey 에 설정한 rack 을 넣습니다
+```yaml
+...
+podAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+  - topologyKey: rack
+	labelSelector:
+	  matchLabels:
+		app: backend
+...
+```
+* 토폴로지 호스트 이름 설정을 통한 파드 어피니티의 예제
+  - podAffinity : required 
+```yaml
+...
+podAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+  - topologyKey: kubernetes.io/hostname
+	labelSelector:
+	  matchLabels:
+		app: backend
+...
+```
+  - podAffinity : required : topologyKey
+```yaml
+...
+podAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+  - topologyKey: kubernetes.io/hostname
+	labelSelector:
+	  matchLabels:
+		app: backend
+...
+```
+
+### 16.3.3 필수 요구 사항 대신 파드 어피니티 선호도 표현하기
+> 프론트엔드와 백엔드를 같이 배치하고 싶지만, 반드시 그렇지 않아도 되는 경우입니다
+![kia.16.6](images/kia.16.6.png)
+
+* 토폴로지 호스트 이름 설정을 통한 파드 어피니티의 예제
+  - podAffinity : preferred
+```yaml
+...
+podAffinity:
+  preferredDuringSchedulingIgnoredDuringExecution:
+  - weight: 80
+	podAffinityTerm:
+	  topologyKey: kubernetes.io/hostname
+	  labelSelector:
+		matchLabels:
+		  app: backend
+...
 ```
 
 ### 16.3.4 파드 안티-어피니티를 사용하여 파드들이 서로 떨어지게 스케줄링하기
@@ -401,6 +585,7 @@ frontend-anti-79f9d8d6f5-vsvhq   1/1     Running   0          27s   10.84.1.19  
 ## 4. 실습해보고 싶은 내용
 * 노드 3개에 골고루 busybox 를 배포하고, 특정 노드에만 NoExecute Taint 를 추가하면 어떻게 되는가?
 * 추가된 Taints 및 Label 삭제는 어떻게 하는가?
+* 같은 zone, region, hostname 에 배포하기 위해서는 어떻게 설정할 수 있는가?
 
 
 ## 5. 요약
