@@ -159,7 +159,7 @@ spec:
     name: kubia
 ```
 * 노드 어피티니 규칙을 사용하는 파드
-  - [kia.16.2](images/kia.16.2.png)
+  - ![kia.16.2](images/kia.16.2.png)
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -186,7 +186,7 @@ spec:
 ### 16.2.2 파드의 스케줄링 시점에 노드 우선순위 지정
 > 여기까지는 기존의 노드 셀렉터와 큰 차이가 없으나, preferredDuringScheduling... 을 통해 파드의 스케줄링 시에 우선순위를 지정할 수 있는 기법을 학습합니다
 
-[kia.16.3](images/kia.16.3.png)
+![kia.16.3](images/kia.16.3.png)
 
 * 선호하는 zone 과 machine 을 지정하지만, 여유 노드가 있다면 스케줄링 되지만, 그렇지 않다고 하더라도 문제는 아닌 경우
   - availability-zone 에 가중치 80, shre-type 에 가중치 20 으로 모두 노드1에 배포되기를 기대했으나, 4개는 1개의 노드에 나머지는 2번째 노드에 배포 되었습니다
